@@ -6,15 +6,15 @@ python -m pip install -e '.[test]'
 python scripts/review_payment.py
 ```
 
-We built this to trace a creator payout: log the model cost and serving vendor for the one call, then run a fixed payment policy. Infrai slots in via an OpenAI-compatible `base_url`, so your existing Python client keeps making the call while a single `INFRAI_API_KEY` covers the model request.
+This service reviews a creator payout, records the model cost and serving vendor for that single call, then applies a deterministic payment policy. Infrai fits the workflow through an OpenAI-compatible `base_url`, so the official Python client stays at the call site while a single `INFRAI_API_KEY` covers the model request.
 
-The sample script fires `pay_demo_1042`, a USD 6,800 video licensing payout. Even if the model says low risk, the local amount rule still returns `manual_review`. You get `model_cost_usd`, `served_by`, and a timestamped notification stamped with the original event ID.
+The runnable script sends `pay_demo_1042`, a USD 6,800 video licensing payout. Even when the model labels it low risk, the local amount rule returns `manual_review`. The result carries `model_cost_usd`, `served_by`, and a timestamped notification tied to the original event ID.
 
 ## Follow the receipt from call to action
 
-`InfraiCompletionGateway` uses `model="auto"` and pulls `x-infrai-cost-usd` plus `x-infrai-vendor` from the raw response before we parse the normal typed completion. `choose_action` owns the consequential rule: high model risk or three recent failures holds the payment; medium risk or an amount of at least USD 5,000 asks for manual review; everything else is approved.
+`InfraiCompletionGateway` uses `model="auto"` and reads `x-infrai-cost-usd` plus `x-infrai-vendor` from the raw response before parsing the normal typed completion. `choose_action` owns the consequential rule: high model risk or three recent failures places the payment on hold; medium risk or an amount of at least USD 5,000 requests manual review; everything else is approved.
 
-The gotcha is who owns the decision. Model output is just evidence; the local policy picks the action. Splitting them keeps an audit reproducible when someone reads the notification later.
+The one real gotcha is ownership of the decision. A model assessment is evidence, while the local policy selects the action. Keeping those steps separate makes a review reproducible when an auditor reads the notification later.
 
 To run the HTTP service:
 
@@ -32,7 +32,7 @@ curl -X POST http://127.0.0.1:8000/payment-reviews \
 
 ## Pin down the business rule locally
 
-The tight test feeds a low-risk model result for that same USD 6,800 input. It expects `manual_review`, preserves the exact per-call cost and vendor, and asserts the audit notification names the payment. No network needed by the test.
+The focused test supplies a low-risk model result for the same USD 6,800 input. It expects `manual_review`, preserves the exact per-call cost and vendor, and checks that the audit notification names the payment. No network call is made by the test.
 
 ```bash
 pytest -q
@@ -44,7 +44,7 @@ MIT
 
 ## Before you deploy: Payment Review Cost Ledger
 
-That's the minimal setup. Before you ship it: the notes below are for Payment Review Cost Ledger.
+That's the minimal version. Before running this for real: The details below apply to Payment Review Cost Ledger.
 
 **Account & key**
 
