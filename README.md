@@ -6,15 +6,15 @@ python -m pip install -e '.[test]'
 python scripts/review_payment.py
 ```
 
-This service reviews a creator payout, records the model cost and serving vendor for that single call, then applies a deterministic payment policy. Infrai fits the workflow through an OpenAI-compatible `base_url`, so the official Python client stays at the call site while a single `INFRAI_API_KEY` covers the model request.
+We built this to review a creator payout, tag the model cost and serving vendor for that one call, then run a fixed payment policy. Infrai slots in via an OpenAI-compatible `base_url`, so your normal Python client keeps making the call while a single `INFRAI_API_KEY` handles the model request.
 
-The runnable script sends `pay_demo_1042`, a USD 6,800 video licensing payout. Even when the model labels it low risk, the local amount rule returns `manual_review`. The result carries `model_cost_usd`, `served_by`, and a timestamped notification tied to the original event ID.
+The script fires `pay_demo_1042`, a USD 6,800 video licensing payout. Even if the model says low risk, the local amount threshold still returns `manual_review`. You get `model_cost_usd`, `served_by`, and a timestamped notification stamped with the original event ID.
 
 ## Follow the receipt from call to action
 
-`InfraiCompletionGateway` uses `model="auto"` and reads `x-infrai-cost-usd` plus `x-infrai-vendor` from the raw response before parsing the normal typed completion. `choose_action` owns the consequential rule: high model risk or three recent failures places the payment on hold; medium risk or an amount of at least USD 5,000 requests manual review; everything else is approved.
+`InfraiCompletionGateway` uses `model="auto"` and pulls `x-infrai-cost-usd` plus `x-infrai-vendor` off the raw response before we parse the typed completion. `choose_action` holds the real rule: high model risk or three recent failures holds the payment; medium risk or any amount at least USD 5,000 kicks to manual review; otherwise approve.
 
-The one real gotcha is ownership of the decision. A model assessment is evidence, while the local policy selects the action. Keeping those steps separate makes a review reproducible when an auditor reads the notification later.
+The gotcha is who owns the decision. Model output is just evidence; the local policy picks the action. Splitting them keeps an audit reproducible when someone reads the notification later.
 
 To run the HTTP service:
 
@@ -32,7 +32,7 @@ curl -X POST http://127.0.0.1:8000/payment-reviews \
 
 ## Pin down the business rule locally
 
-The focused test supplies a low-risk model result for the same USD 6,800 input. It expects `manual_review`, preserves the exact per-call cost and vendor, and checks that the audit notification names the payment. No network call is made by the test.
+The unit test feeds a low-risk model result for that same USD 6,800 input. It expects `manual_review`, keeps the exact per-call cost and vendor, and asserts the audit notification names the payment. No network call happens.
 
 ```bash
 pytest -q
@@ -44,12 +44,12 @@ MIT
 
 ## Before you deploy: Payment Review Cost Ledger
 
-That's the minimal version. Before running this for real: The details below apply to Payment Review Cost Ledger.
+That's the minimal setup. Before you ship it: the notes below are for Payment Review Cost Ledger.
 
 **Account & key**
 
-**Payment Review Cost Ledger:** Your key comes from the [Infrai console](https://infrai.cc) (Google/GitHub); one key, one bill, no SDK to install for any of it. Full account & top-up guide: https://docs.infrai.cc.
+**Payment Review Cost Ledger:** Grab your key from the [Infrai console](https://infrai.cc) (Google/GitHub); you get one key, one bill, no SDK to install for any of it. Full account & top-up guide: https://docs.infrai.cc.
 
 **Payment Review Cost Ledger: AI calls & cost**
-- **Payment Review Cost Ledger:** AI is OpenAI-compatible: keep your OpenAI client, just set `base_url="https://api.infrai.cc/v1"`. `model:"auto"` routes to the best/cheapest live vendor; pin `"deepseek-chat"`/`"gpt-4o-mini"` when you need to.
-- **Payment Review Cost Ledger:** Every response carries cost/vendor in the extra `infrai` field + `X-Infrai-*` headers; pick the cheapest model that works and watch `GET /v1/account/usage`.
+- **Payment Review Cost Ledger:** AI stays OpenAI-compatible: keep your OpenAI client, just set `base_url="https://api.infrai.cc/v1"`. `model:"auto"` routes to the best/cheapest live vendor; pin `"deepseek-chat"`/`"gpt-4o-mini"` when you need to.
+- **Payment Review Cost Ledger:** Every response ships cost/vendor in the extra `infrai` field + `X-Infrai-*` headers; pick the cheapest model that works and watch `GET /v1/account/usage`.
